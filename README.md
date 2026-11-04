@@ -1,8 +1,8 @@
 # Legacy OrderHub - Proyecto Base de Modernización y Mantenimiento
 
 > **Asignatura:** Actualización y Mantenimiento de Software  
-> **Estado del Sistema:** Producción Legada (v1.0.0-legacy) — *Alta Deuda Técnica*  
-> **Nivel de Cobertura de Pruebas:** 0%  
+> **Estado del Sistema:** v2.0 — Django + DRF (arquitectura hexagonal), contenerizado y desplegable en Kubernetes  
+> **Cobertura de pruebas:** mínimo 80 % exigido por el CI (`coverage report --fail-under=80`)  
 
 ---
 
@@ -18,10 +18,10 @@ Tu rol como ingeniero/a en este curso será asumir el mantenimiento de este sist
 
 ## Objetivos del Proyecto
 
-### 🎯 Objetivo General
+### Objetivo General
 Evolucionar y modernizar la aplicación **Legacy OrderHub** desde su estado monolítico vulnerable hasta una arquitectura escalable, segura, observadamente monitoreada y desplegada mediante flujos automatizados de CI/CD.
 
-### 🎯 Objetivos Específicos por Unidad
+### Objetivos Específicos por Unidad
 
 1. **Unidad I: Modernización Inteligente e Ingeniería Inversa**
    * Realizar auditorías de código estático y dinámico para mapear la deuda técnica y las vulnerabilidades críticas.
@@ -49,13 +49,13 @@ Evolucionar y modernizar la aplicación **Legacy OrderHub** desde su estado mono
 
 | Componente | Estado Actual (v1.0 - Legado) | Estado Objetivo (v2.0 - Modernizado) |
 | :--- | :--- | :--- |
-| **Lenguaje / Framework** | Python 3.8 / Flask Monolítico | Python 3.11+ / Flask o FastAPI modular |
-| **Base de Datos** | SQLite (Sin migraciones / SQL Directo) | PostgreSQL + ORM (SQLAlchemy / Alembic) |
+| **Lenguaje / Framework** | Python 3.8 / Flask Monolítico | Python 3.12+ / Django + Django REST Framework (Arquitectura Hexagonal) |
+| **Base de Datos** | SQLite (Sin migraciones / SQL Directo) | PostgreSQL + Django ORM y migraciones (SQLite en desarrollo local) |
 | **Seguridad** | Secretos *hardcoded*, contraseñas plano | `.env` / Vault, Hash Bcrypt/Argon2, JWT |
-| **Pruebas** | Ninguna (0% coverage) | Pytest + Cobertura > 80% + Mocks de IA |
+| **Pruebas** | Ninguna (0% coverage) | `manage.py test` + coverage >= 80 % |
 | **Infraestructura** | Ejecución local/servidor directo | Docker Compose + Kubernetes (Minikube/k3s) |
 | **CI / CD** | Despliegue manual | GitHub Actions / GitLab CI + SonarQube |
-| **Observabilidad** | `print()` en consola | Prometheus + Grafana + Structured Logs (JSON) |
+| **Observabilidad** | `print()` en consola | Logs JSON + `/metrics` (Prometheus) + dashboard Grafana (RED) |
 
 ---
 
@@ -70,9 +70,9 @@ A continuación se resumen las áreas más críticas identificadas en el sistema
 
 ---
 
-## Guía de Inicio Rápido (Entorno Legado Local)
+## Guía de Inicio Rápido (Django)
 
-## La API estará disponible en http://localhost:5000.
+## La API estará disponible en http://localhost:8000.
 
 ### Reglas del Proyecto Durante el Curso
 
@@ -85,7 +85,7 @@ A continuación se resumen las áreas más críticas identificadas en el sistema
 ¡Bienvenido/a al proceso de modernización! El éxito de la operación depende de tu capacidad para diagnosticar, refactorizar y automatizar.
 
 ### Requisitos Previos
-* Python 3.8 o superior instalado.
+* Python 3.12 o superior instalado.
 * Git.
 
 ### Pasos para Ejecutar
@@ -93,6 +93,7 @@ A continuación se resumen las áreas más críticas identificadas en el sistema
    ```bash
    git clone [https://github.com/tu-usuario/legacy-orderhub.git](https://github.com/tu-usuario/legacy-orderhub.git)
    cd legacy-orderhub
+   ```
 2. Crear y activar un entorno virtual:
    ```bash
    python -m venv venv
@@ -100,10 +101,58 @@ A continuación se resumen las áreas más críticas identificadas en el sistema
    source venv/bin/activate
    # En Windows:
    venv\Scripts\activate
+   ```
+3. Instalar las dependencias:
+   ```bash
+   pip install -r requirements.txt
+   ```
+4. Copiar `.env.example` a `.env` (y generar un `DJANGO_SECRET_KEY` propio si vas a desplegar):
+   ```bash
+   cp .env.example .env
+   ```
+5. Aplicar las migraciones (crea la base de datos SQLite y siembra los datos iniciales):
+   ```bash
+   python manage.py migrate
+   ```
+6. Levantar el servidor de desarrollo:
+   ```bash
+   python manage.py runserver
+   ```
+7. Ejecutar las pruebas:
+   ```bash
+   python manage.py test
+   ```
 
-3.Instalar las dependencias legadas:
-  ```bash
-  pip install -r requirements.txt
-   
 
-   
+---
+
+## Despliegue y operación
+
+### Docker Compose (API + PostgreSQL + Redis)
+```bash
+cp .env.example .env        # defina DJANGO_SECRET_KEY y POSTGRES_PASSWORD
+docker compose up --build   # API en http://localhost:8000
+```
+
+### Kubernetes (Minikube / k3s)
+Manifiestos en [`k8s/`](k8s/README.md): Deployment, Service, ConfigMap, Secret, HPA (2–5 réplicas al 70 % CPU),
+PostgreSQL, Redis y Job de migraciones. Monitoreo (Prometheus + Grafana) en `k8s/monitoring/`.
+Despliegue Canary 90/10 con rollback automático en `k8s/canary/`.
+
+### Pruebas de carga
+Script de Locust en [`loadtest/`](loadtest/README.md).
+
+### Endpoints operativos
+`/healthcheck` (liveness/readiness) y `/metrics` (Prometheus).
+
+### Documentación
+[`docs/ANALYSIS_AND_REQUIREMENTS.md`](docs/ANALYSIS_AND_REQUIREMENTS.md) ·
+[`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) ·
+[`docs/HEXAGONAL_ARCHITECTURE.md`](docs/HEXAGONAL_ARCHITECTURE.md) ·
+[`docs/TECHNICAL_DEBT_LOG.md`](docs/TECHNICAL_DEBT_LOG.md)
+
+### Despliegue en Render (CI/CD)
+`render.yaml` define el servicio web (Docker) y la base PostgreSQL. Flujo:
+1. Cada push a `main` o `Dev` ejecuta el CI (estilo, SAST, pruebas con cobertura >= 80 %, build de la imagen y prueba de humo contra PostgreSQL).
+2. Render solo despliega el commit cuando esos checks pasan (`autoDeployTrigger: checksPass`) y verifica `/healthcheck`.
+3. Las contraseñas iniciales de `admin` y `juan` se generan en Render (`SEED_ADMIN_PASSWORD`, `SEED_USER_PASSWORD`).

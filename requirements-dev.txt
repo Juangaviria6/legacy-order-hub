@@ -1,0 +1,5 @@
+-r requirements-prod.txt
+coverage==7.6.10
+flake8==7.1.1
+black==24.10.0
+bandit==1.8.2

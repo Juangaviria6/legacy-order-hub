@@ -1,0 +1,14 @@
+[tool.black]
+line-length = 88
+extend-exclude = '''
+/(
+  venv
+  | migrations
+)/
+'''
+
+[tool.bandit]
+exclude_dirs = ["venv", ".venv", "migrations"]
+# B101 (assert) y B106 (contraseña en create_user) solo aparecen en tests.py,
+# con usuarios de prueba descartables; no hay secretos reales en el código.
+skips = ["B101", "B106"]

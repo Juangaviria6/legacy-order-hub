@@ -1,0 +1,41 @@
+# Requiere el Ingress Controller NGINX (minikube addons enable ingress).
+# Ingress principal: 90 % del tráfico (implícito) a la versión estable.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orderhub-stable
+  namespace: orderhub
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: orderhub.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orderhub
+                port: { number: 80 }
+---
+# Ingress canary: 10 % del tráfico a la nueva versión.
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: orderhub-canary
+  namespace: orderhub
+  annotations:
+    nginx.ingress.kubernetes.io/canary: "true"
+    nginx.ingress.kubernetes.io/canary-weight: "10"
+spec:
+  ingressClassName: nginx
+  rules:
+    - host: orderhub.local
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: orderhub-canary
+                port: { number: 80 }

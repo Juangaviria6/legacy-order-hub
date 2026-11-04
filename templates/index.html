@@ -3,44 +3,289 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Legacy OrderHub - Panel de Control</title>
+    <title>Legacy OrderHub</title>
     <style>
-        body { font-family: Arial, sans-serif; margin: 30px; background-color: #f4f4f9; color: #333; }
-        h1 { color: #d9534f; }
+        body { font-family: Arial, sans-serif; margin: 0; background-color: #f4f4f9; color: #333; }
+        h1 { color: #0275d8; margin-top: 0; }
+        h3 { margin-top: 0; }
+        .hidden { display: none !important; }
         .card { background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); margin-bottom: 20px; }
-        .badge { background: #d9534f; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; }
-        pre { background: #272822; color: #f8f8f2; padding: 15px; border-radius: 5px; overflow-x: auto; }
+        .badge { background: #5cb85c; color: white; padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 0.6em; vertical-align: middle; }
+        .role { background: #6c757d; color: white; padding: 3px 8px; border-radius: 4px; font-size: 0.85em; }
+        .row { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; }
+        input, select { padding: 8px; border: 1px solid #ccc; border-radius: 4px; }
         button { background: #0275d8; color: white; border: none; padding: 10px 15px; border-radius: 4px; cursor: pointer; }
         button:hover { background: #025aa5; }
+        button.secondary { background: #6c757d; }
+        table { border-collapse: collapse; width: 100%; margin-top: 10px; }
+        th, td { border-bottom: 1px solid #ddd; padding: 8px; text-align: left; }
+        th { background: #f0f0f5; }
+        #message { padding: 10px 14px; border-radius: 4px; margin-bottom: 20px; display: none; }
+        #message.ok { display: block; background: #dff0d8; color: #3c763d; }
+        #message.error { display: block; background: #f2dede; color: #a94442; }
+
+        #loginView { min-height: 100vh; display: flex; align-items: center; justify-content: center; }
+        #loginView .card { width: 340px; margin: 0; }
+        #loginView input, #loginView button { width: 100%; box-sizing: border-box; margin-top: 10px; }
+
+        #appView { margin: 30px; }
+        .topbar { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 10px; }
+        .links a { margin-right: 15px; }
     </style>
 </head>
 <body>
 
-    <div class="card">
-        <h1>📦 Legacy OrderHub API <span class="badge">v1.0.0-LEGACY</span></h1>
-        <p><strong>Estado del Sistema:</strong> Monolito no optimizado con alta deuda técnica.</p>
-        <p><strong>Atención Estudiantes:</strong> Este panel es solo para monitoreo visual inicial. Durante el curso deberán refactorizar tanto el backend como la infraestructura.</p>
+    <!-- Pantalla inicial: solo inicio de sesion -->
+    <div id="loginView">
+        <div class="card">
+            <h1>Legacy OrderHub <span class="badge">v2.0</span></h1>
+            <p>Inicie sesión para continuar.</p>
+            <div id="loginMessage" class="hidden" style="color:#a94442; margin-bottom:10px;"></div>
+            <form onsubmit="login(); return false;">
+                <input id="username" placeholder="Usuario" autocomplete="username" autofocus>
+                <input id="password" type="password" placeholder="Contraseña" autocomplete="current-password">
+                <button type="submit">Iniciar sesión</button>
+            </form>
+        </div>
     </div>
 
-    <div class="card">
-        <h3>🔍 Probar Consulta de Órdenes Legadas</h3>
-        <button onclick="fetchOrders()">Cargar Órdenes desde la API (/get_all_orders_legacy)</button>
-        <h4>Respuesta de la API:</h4>
-        <pre id="output">// Haz clic en el botón para consultar la base de datos...</pre>
+    <!-- Aplicacion: visible solo con sesion iniciada -->
+    <div id="appView" class="hidden">
+        <div class="card topbar">
+            <h1 style="margin:0;">Legacy OrderHub <span class="badge">v2.0</span></h1>
+            <div class="row">
+                <span id="session"></span>
+                <span id="roleBadge" class="role"></span>
+                <button class="secondary" onclick="logout()">Cerrar sesión</button>
+            </div>
+        </div>
+
+        <div id="message"></div>
+
+        <div class="card">
+            <h3>Catálogo de productos</h3>
+            <button class="secondary" onclick="loadProducts()">Actualizar</button>
+            <table>
+                <thead><tr><th>ID</th><th>Nombre</th><th>Precio</th><th>Stock</th></tr></thead>
+                <tbody id="productsBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card">
+            <h3>Crear orden</h3>
+            <div class="row">
+                <select id="orderProduct"></select>
+                <input id="orderQuantity" type="number" min="1" value="1" style="width: 80px;">
+                <button onclick="createOrder()">Crear orden</button>
+            </div>
+        </div>
+
+        <div class="card hidden" id="adminCard">
+            <h3>Crear producto (solo administrador)</h3>
+            <div class="row">
+                <input id="productName" placeholder="Nombre">
+                <input id="productPrice" type="number" min="0" step="0.01" placeholder="Precio">
+                <input id="productStock" type="number" min="0" placeholder="Stock">
+                <button onclick="createProduct()">Crear producto</button>
+            </div>
+        </div>
+
+        <div class="card">
+            <h3 id="ordersTitle">Órdenes</h3>
+            <button class="secondary" onclick="loadOrders()">Actualizar</button>
+            <table>
+                <thead><tr><th>ID</th><th>Usuario</th><th>Producto</th><th>Cantidad</th><th>Total</th><th>Estado</th></tr></thead>
+                <tbody id="ordersBody"></tbody>
+            </table>
+        </div>
+
+        <div class="card hidden" id="opsCard">
+            <h3>Operación (solo administrador)</h3>
+            <p class="links">
+                <a href="/healthcheck" target="_blank">/healthcheck</a>
+                <a href="/metrics" target="_blank">/metrics</a>
+            </p>
+        </div>
     </div>
 
     <script>
-        async function fetchOrders() {
-            const outputBlock = document.getElementById('output');
-            outputBlock.textContent = "Cargando órdenes desde el servidor...";
-            try {
-                const response = await fetch('/get_all_orders_legacy');
-                const data = await response.json();
-                outputBlock.textContent = JSON.stringify(data, null, 2);
-            } catch (error) {
-                outputBlock.textContent = "Error al conectar con la API: " + error;
+        let accessToken = null;
+        let currentUser = null;
+
+        function show(text, ok) {
+            const box = document.getElementById('message');
+            box.textContent = text;
+            box.className = ok ? 'ok' : 'error';
+        }
+
+        function showLoginMessage(text) {
+            const box = document.getElementById('loginMessage');
+            box.textContent = text;
+            box.classList.toggle('hidden', !text);
+        }
+
+        function authHeaders() {
+            const headers = {'Content-Type': 'application/json'};
+            if (accessToken) headers['Authorization'] = 'Bearer ' + accessToken;
+            return headers;
+        }
+
+        async function api(path, options) {
+            const response = await fetch(path, options);
+            let data = null;
+            try { data = await response.json(); } catch (e) { data = null; }
+            if (response.status === 401 && accessToken) {
+                endSession('Su sesión expiró. Inicie sesión de nuevo.');
+            }
+            return {status: response.status, data: data};
+        }
+
+        function errorText(result) {
+            if (result.status === 401) return 'No autorizado.';
+            if (result.status === 403) return 'Acceso denegado: se requiere rol administrador.';
+            const d = result.data || {};
+            if (d.message) return d.message;
+            if (typeof d.error === 'string') return d.error;
+            return d.error ? JSON.stringify(d.error) : 'Error ' + result.status;
+        }
+
+        function addRow(body, values) {
+            const tr = document.createElement('tr');
+            values.forEach(function (value) {
+                const td = document.createElement('td');
+                td.textContent = value;
+                tr.appendChild(td);
+            });
+            body.appendChild(tr);
+        }
+
+        function isAdmin() {
+            return currentUser !== null && currentUser.role === 'admin';
+        }
+
+        function renderApp() {
+            const logged = currentUser !== null;
+            document.getElementById('loginView').classList.toggle('hidden', logged);
+            document.getElementById('appView').classList.toggle('hidden', !logged);
+            document.getElementById('adminCard').classList.toggle('hidden', !isAdmin());
+            document.getElementById('opsCard').classList.toggle('hidden', !isAdmin());
+            if (logged) {
+                document.getElementById('session').textContent = currentUser.username;
+                document.getElementById('roleBadge').textContent =
+                    isAdmin() ? 'Administrador' : 'Cliente';
+                document.getElementById('ordersTitle').textContent =
+                    isAdmin() ? 'Órdenes de todos los usuarios' : 'Mis órdenes';
             }
         }
+
+        function endSession(loginText) {
+            accessToken = null;
+            currentUser = null;
+            document.getElementById('ordersBody').replaceChildren();
+            document.getElementById('productsBody').replaceChildren();
+            document.getElementById('message').className = '';
+            renderApp();
+            showLoginMessage(loginText || '');
+        }
+
+        async function login() {
+            const result = await api('/login', {
+                method: 'POST',
+                headers: {'Content-Type': 'application/json'},
+                body: JSON.stringify({
+                    username: document.getElementById('username').value,
+                    password: document.getElementById('password').value,
+                }),
+            });
+            document.getElementById('password').value = '';
+            if (result.status === 200 && result.data && result.data.access) {
+                accessToken = result.data.access;
+                currentUser = result.data.user;
+                showLoginMessage('');
+                renderApp();
+                show('Bienvenido, ' + currentUser.username + '.', true);
+                loadProducts();
+                loadOrders();
+            } else if (result.status === 401) {
+                showLoginMessage('Credenciales inválidas.');
+            } else {
+                showLoginMessage(errorText(result));
+            }
+        }
+
+        function logout() {
+            endSession('');
+        }
+
+        async function loadProducts() {
+            const result = await api('/products');
+            if (result.status !== 200) { show(errorText(result), false); return; }
+            const body = document.getElementById('productsBody');
+            const select = document.getElementById('orderProduct');
+            body.replaceChildren();
+            select.replaceChildren();
+            result.data.forEach(function (p) {
+                addRow(body, [p.id, p.name, '$' + p.price, p.stock]);
+                const option = document.createElement('option');
+                option.value = p.id;
+                option.textContent = p.name + ' (stock ' + p.stock + ')';
+                select.appendChild(option);
+            });
+        }
+
+        async function createOrder() {
+            const result = await api('/create_order', {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    product_id: parseInt(document.getElementById('orderProduct').value, 10),
+                    quantity: parseInt(document.getElementById('orderQuantity').value, 10),
+                }),
+            });
+            if (result.status === 201) {
+                show('Orden #' + result.data.order_id + ' creada. Total: $' + result.data.total, true);
+                loadProducts();
+                loadOrders();
+            } else if (accessToken) {
+                show(errorText(result), false);
+            }
+        }
+
+        async function createProduct() {
+            const result = await api('/products', {
+                method: 'POST',
+                headers: authHeaders(),
+                body: JSON.stringify({
+                    name: document.getElementById('productName').value,
+                    price: parseFloat(document.getElementById('productPrice').value),
+                    stock: parseInt(document.getElementById('productStock').value, 10),
+                }),
+            });
+            if (result.status === 201) {
+                show('Producto creado correctamente.', true);
+                document.getElementById('productName').value = '';
+                document.getElementById('productPrice').value = '';
+                document.getElementById('productStock').value = '';
+                loadProducts();
+            } else if (accessToken) {
+                show(errorText(result), false);
+            }
+        }
+
+        async function loadOrders() {
+            const result = await api('/get_all_orders_legacy', {headers: authHeaders()});
+            if (result.status !== 200) {
+                if (accessToken) show(errorText(result), false);
+                return;
+            }
+            const body = document.getElementById('ordersBody');
+            body.replaceChildren();
+            result.data.forEach(function (o) {
+                addRow(body, [o.id, o.user_id, o.product_id, o.quantity, '$' + o.total, o.status]);
+            });
+        }
+
+        renderApp();
     </script>
 
 </body>

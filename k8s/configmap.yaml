@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: orderhub-config
+  namespace: orderhub
+data:
+  DJANGO_DEBUG: "False"
+  # "*" porque los pods se alcanzan por IP/Service; restrinja al dominio real en producción.
+  DJANGO_ALLOWED_HOSTS: "*"
+  DJANGO_LOG_LEVEL: "INFO"
+  POSTGRES_DB: orderhub
+  POSTGRES_USER: orderhub
+  # Las migraciones las aplica el Job orderhub-migrate, no cada pod.
+  RUN_MIGRATIONS: "false"
+  REDIS_URL: redis://redis:6379/0

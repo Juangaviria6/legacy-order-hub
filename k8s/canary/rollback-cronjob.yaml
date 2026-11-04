@@ -1,0 +1,67 @@
+# Rollback automático (HU-09.3): cada minuto evalúa la tasa de error 5xx del canary
+# y, si supera el 1 %, elimina su Ingress y lo escala a 0 réplicas.
+apiVersion: v1
+kind: ServiceAccount
+metadata:
+  name: canary-guard
+  namespace: orderhub
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: Role
+metadata:
+  name: canary-guard
+  namespace: orderhub
+rules:
+  - apiGroups: ["networking.k8s.io"]
+    resources: [ingresses]
+    verbs: [get, delete]
+  - apiGroups: ["apps"]
+    resources: [deployments, deployments/scale]
+    verbs: [get, patch]
+---
+apiVersion: rbac.authorization.k8s.io/v1
+kind: RoleBinding
+metadata:
+  name: canary-guard
+  namespace: orderhub
+roleRef:
+  apiGroup: rbac.authorization.k8s.io
+  kind: Role
+  name: canary-guard
+subjects:
+  - kind: ServiceAccount
+    name: canary-guard
+    namespace: orderhub
+---
+apiVersion: batch/v1
+kind: CronJob
+metadata:
+  name: canary-guard
+  namespace: orderhub
+spec:
+  schedule: "* * * * *"
+  concurrencyPolicy: Forbid
+  successfulJobsHistoryLimit: 1
+  failedJobsHistoryLimit: 3
+  jobTemplate:
+    spec:
+      backoffLimit: 0
+      template:
+        spec:
+          serviceAccountName: canary-guard
+          restartPolicy: Never
+          containers:
+            - name: guard
+              image: alpine/k8s:1.31.2
+              command: ["sh", "/scripts/canary_check.sh"]
+              env:
+                - { name: PROM_URL, value: "http://prometheus:9090" }
+                - { name: THRESHOLD, value: "0.01" }
+                - { name: NS, value: orderhub }
+              volumeMounts:
+                - name: scripts
+                  mountPath: /scripts
+          volumes:
+            - name: scripts
+              configMap:
+                name: canary-guard-script
