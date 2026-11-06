@@ -1,12 +1,6 @@
-# Blueprint de Render: web service (Docker) + PostgreSQL gestionado.
-# CD: Render solo despliega cuando los checks de GitHub Actions (CI) pasan.
-databases:
-  - name: orderhub-db
-    databaseName: orderhub
-    user: orderhub
-    plan: free
-    ipAllowList: [] # solo accesible desde servicios de Render (red privada)
-
+# Blueprint de Render: web service (Docker). La base de datos es externa (Supabase).
+# CD: el despliegue lo dispara el workflow cd.yml de GitHub Actions mediante un
+# Deploy Hook, solo cuando el CI pasa sobre main. Por eso el auto-deploy esta apagado.
 services:
   - type: web
     name: legacy-order-hub
@@ -14,7 +8,7 @@ services:
     plan: free
     dockerfilePath: ./Dockerfile
     healthCheckPath: /healthcheck
-    autoDeployTrigger: checksPass
+    autoDeployTrigger: "off"
     envVars:
       - key: PORT
         value: "8000"
@@ -24,12 +18,10 @@ services:
         value: ".onrender.com"
       - key: DJANGO_SECRET_KEY
         generateValue: true
-      # Contrasenas iniciales de los usuarios admin y juan (visibles en el panel de Render).
-      - key: SEED_ADMIN_PASSWORD
-        generateValue: true
-      - key: SEED_USER_PASSWORD
-        generateValue: true
+      # Se escriben en el panel de Render (no se guardan en el repositorio).
       - key: DATABASE_URL
-        fromDatabase:
-          name: orderhub-db
-          property: connectionString
+        sync: false
+      - key: SEED_ADMIN_PASSWORD
+        sync: false
+      - key: SEED_USER_PASSWORD
+        sync: false

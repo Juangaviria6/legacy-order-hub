@@ -1,0 +1,62 @@
+name: CD
+
+# Se ejecuta solo cuando el workflow "CI" termina sobre la rama main.
+# Un unico job (un unico runner) que despliega en Render y verifica el resultado.
+on:
+  workflow_run:
+    workflows: ["CI"]
+    types: [completed]
+    branches: [main]
+
+permissions:
+  contents: read
+
+concurrency:
+  group: cd-main
+  cancel-in-progress: false
+
+jobs:
+  deploy:
+    name: Desplegar en Render y verificar
+    if: github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SHA: ${{ github.event.workflow_run.head_sha }}
+      RENDER_DEPLOY_HOOK_URL: ${{ secrets.RENDER_DEPLOY_HOOK_URL }}
+      RENDER_SERVICE_URL: ${{ secrets.RENDER_SERVICE_URL }}
+    steps:
+      - name: Validar configuracion
+        run: |
+          if [ -z "$RENDER_DEPLOY_HOOK_URL" ] || [ -z "$RENDER_SERVICE_URL" ]; then
+            echo "Faltan los secretos RENDER_DEPLOY_HOOK_URL y/o RENDER_SERVICE_URL"
+            exit 1
+          fi
+
+      - name: Disparar despliegue en Render
+        run: |
+          curl -fsS -X POST "${RENDER_DEPLOY_HOOK_URL}&ref=${SHA}" > /dev/null
+          echo "Despliegue solicitado para el commit ${SHA}"
+
+      - name: Esperar a que la nueva version responda
+        run: |
+          for i in $(seq 1 60); do
+            if curl -fsS "${RENDER_SERVICE_URL}/healthcheck" | grep -q "${SHA}"; then
+              echo "Version ${SHA} en linea"
+              exit 0
+            fi
+            echo "Esperando despliegue (${i}/60)..."
+            sleep 10
+          done
+          echo "La version ${SHA} no respondio a tiempo"
+          exit 1
+
+      - name: Pruebas de humo en produccion
+        run: |
+          curl -fsS "${RENDER_SERVICE_URL}/healthcheck" | grep -q '"status": "ok"'
+          curl -fsS "${RENDER_SERVICE_URL}/products" > /dev/null
+          code=$(curl -s -o /dev/null -w '%{http_code}' -X POST "${RENDER_SERVICE_URL}/login" \
+            -H 'Content-Type: application/json' \
+            -d '{"username":"'"'"' OR '"'"'1'"'"'='"'"'1","password":"x"}')
+          test "$code" = "401"
+          echo "Pruebas de humo correctas"

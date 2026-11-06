@@ -152,7 +152,8 @@ Script de Locust en [`loadtest/`](loadtest/README.md).
 [`docs/TECHNICAL_DEBT_LOG.md`](docs/TECHNICAL_DEBT_LOG.md)
 
 ### Despliegue en Render (CI/CD)
-`render.yaml` define el servicio web (Docker) y la base PostgreSQL. Flujo:
-1. Cada push a `main` o `Dev` ejecuta el CI (estilo, SAST, pruebas con cobertura >= 80 %, build de la imagen y prueba de humo contra PostgreSQL).
-2. Render solo despliega el commit cuando esos checks pasan (`autoDeployTrigger: checksPass`) y verifica `/healthcheck`.
-3. Las contraseñas iniciales de `admin` y `juan` se generan en Render (`SEED_ADMIN_PASSWORD`, `SEED_USER_PASSWORD`).
+- **CI** (`.github/workflows/ci.yml`): en cada push a `main` o `Dev` y en cada Pull Request a `main` ejecuta estilo, SAST, pruebas con cobertura >= 80 %, build de la imagen con prueba de humo contra PostgreSQL y validacion de manifiestos de Kubernetes.
+- **CD** (`.github/workflows/cd.yml`): solo se ejecuta cuando el CI termina correctamente sobre `main`. En un unico job dispara el despliegue en Render mediante un Deploy Hook, espera a que `/healthcheck` informe el commit desplegado y ejecuta pruebas de humo en produccion.
+- Secretos de GitHub necesarios: `RENDER_DEPLOY_HOOK_URL` y `RENDER_SERVICE_URL`.
+- Base de datos: PostgreSQL en Supabase (`DATABASE_URL` en las variables de entorno de Render).
+- Contrasenas iniciales de `admin` y `juan`: variables `SEED_ADMIN_PASSWORD` y `SEED_USER_PASSWORD` (solo se aplican cuando la tabla de usuarios esta vacia).

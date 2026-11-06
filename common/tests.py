@@ -1,6 +1,8 @@
 import json
 import logging
+import os
 from types import SimpleNamespace
+from unittest.mock import patch
 
 from django.test import TestCase
 
@@ -38,6 +40,12 @@ class ObservabilityTests(TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(response.json()["status"], "ok")
+
+    def test_healthcheck_reports_deployed_version(self):
+        with patch.dict(os.environ, {"RENDER_GIT_COMMIT": "abc123"}):
+            response = self.client.get("/healthcheck")
+
+        self.assertEqual(response.json()["version"], "abc123")
 
     def test_metrics_endpoint_exposes_prometheus_format(self):
         self.client.get("/healthcheck")
